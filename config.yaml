@@ -1,0 +1,31 @@
+output: 'outputs/final'
+
+# They are imposed by the choice of the model we start from
+channels: [128, 256, 512, 512, 512, 512, 512]
+
+# Used to build conditional GANs, maybe in the future
+#label: 0
+
+# Load the initial model here
+g_file: 'outputs/start_model/Gs.pt'
+d_file: 'outputs/start_model/D.pt'
+
+# Numbei of epochs
+iterations: 2000
+
+gpu: [0]
+batch_size: 32
+
+# Checkpoint config
+resume: False
+checkpoint_dir: 'outputs/checkpoints'
+checkpoint_interval: 200
+
+# Input data
+data_dir: 'inputs/resized'
+data_resize: True
+mirror_augment: True
+
+#fid_interval: 200
+#tensorboard_log_dir: ''
+#tensorboard_image_interval: 10
