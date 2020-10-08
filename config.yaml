@@ -11,7 +11,7 @@ g_file: 'outputs/start_model/Gs.pt'
 d_file: 'outputs/start_model/D.pt'
 
 # Numbei of epochs
-iterations: 2000
+iterations: 20000
 
 gpu: [0]
 batch_size: 32
@@ -19,7 +19,7 @@ batch_size: 32
 # Checkpoint config
 resume: False
 checkpoint_dir: 'outputs/checkpoints'
-checkpoint_interval: 200
+checkpoint_interval: 250
 
 # Input data
 data_dir: 'inputs/resized'
