@@ -125,6 +125,35 @@ def get_arg_parser():
 
     _add_shared_arguments(generate_images_parser)
 
+    interpolate_parser = subparsers.add_parser(
+        'interpolate', help='Interpolate images')
+
+    interpolate_parser.add_argument(
+        '--batch_size',
+        help='Batch size for generator. Default: %(default)s',
+        type=int,
+        default=1,
+        metavar='VALUE'
+    )
+
+    interpolate_parser.add_argument(
+        '--seeds',
+        help='List of random seeds for generating images. ' + range_desc,
+        type=utils.range_type,
+        required=True,
+        metavar='RANGE'
+    )
+
+    interpolate_parser.add_argument(
+        '--number',
+        help='Number of images. ' + range_desc,
+        type=int,
+        required=True,
+        metavar='VALUE'
+    )
+
+    _add_shared_arguments(interpolate_parser)
+
     style_mixing_example_parser = subparsers.add_parser(
         'style_mixing_example', help='Generate style mixing video')
 
@@ -334,6 +363,85 @@ def generate_images(G, args):
 
 #----------------------------------------------------------------------------
 
+def interpolate(G, args):
+
+    latent_size, label_size = G.latent_size, G.label_size
+    device = torch.device(args.gpu[0] if args.gpu else 'cpu')
+    if device.index is not None:
+        torch.cuda.set_device(device.index)
+    G.to(device)
+    if args.truncation_psi != 1:
+        G.set_truncation(truncation_psi=args.truncation_psi)
+    if len(args.gpu) > 1:
+        warnings.warn(
+            'Noise can not be randomized based on the seed ' + \
+            'when using more than 1 GPU device. Noise will ' + \
+            'now be randomized from default random state.'
+        )
+        G.random_noise()
+        G = torch.nn.DataParallel(G, device_ids=args.gpu)
+    else:
+        noise_reference = G.static_noise()
+
+    def get_batch(seed_1, seed_2):
+        latents = []
+        labels = []
+        if len(args.gpu) <= 1:
+            noise_tensors = [[] for _ in noise_reference]
+
+        rnd = np.random.RandomState(123454321)
+        rnd_1, rnd_2 = np.random.RandomState(seed_1), np.random.RandomState(seed_2)
+        latent_1, latent_2 = torch.from_numpy(rnd_1.randn(latent_size)), torch.from_numpy(rnd_2.randn(latent_size))
+
+        for nb in range(args.number+1):
+            step = nb / args.number
+            latents.append(latent_2 * step + latent_1 * (1 - step))
+
+            if len(args.gpu) <= 1:
+                for i, ref in enumerate(noise_reference):
+                    noise_tensors[i].append(torch.from_numpy(rnd.randn(*ref.size()[1:])))
+            if label_size:
+                labels.append(torch.tensor([rnd.randint(0, label_size)]))
+
+        latents = torch.stack(latents, dim=0).to(device=device, dtype=torch.float32)
+        if labels:
+            labels = torch.cat(labels, dim=0).to(device=device, dtype=torch.int64)
+        else:
+            labels = None
+        if len(args.gpu) <= 1:
+            noise_tensors = [
+                torch.stack(noise, dim=0).to(device=device, dtype=torch.float32)
+                for noise in noise_tensors
+            ]
+        else:
+            noise_tensors = None
+        return latents, labels, noise_tensors
+
+    progress = utils.ProgressWriter(len(args.seeds))
+    progress.write('Generating images...', step=False)
+
+    seed_1, seed_2 = args.seeds
+    all_latents, all_labels, all_noise_tensors = get_batch(seed_1, seed_2)
+
+    for i in range(0, all_latents.shape[0], args.batch_size):
+        print(i)
+        latents, labels, noise_tensors = all_latents[i: i+args.batch_size], all_labels[i: i+args.batch_size] if all_labels else None, [n[i: i+args.batch_size] for n in all_noise_tensors] if all_noise_tensors else None
+        if noise_tensors is not None:
+            G.static_noise(noise_tensors=noise_tensors)
+        with torch.no_grad():
+            generated = G(latents, labels=labels)
+        images = utils.tensor_to_PIL(
+            generated, pixel_min=args.pixel_min, pixel_max=args.pixel_max)
+        for img in images:
+            img.save(os.path.join(args.output, f'{seed_1}_{seed_2}_interpolate_{i}.png'))
+            progress.step()
+
+    progress.write('Done!', step=False)
+    progress.close()
+
+
+#----------------------------------------------------------------------------
+
 def main():
     args = get_arg_parser().parse_args()
     assert args.command, 'Missing subcommand.'
@@ -350,6 +458,8 @@ def main():
 
     if args.command == 'generate_images':
         generate_images(G, args)
+    elif args.command == 'interpolate':
+        interpolate(G, args)
     elif args.command == 'style_mixing_example':
         style_mixing_example(G, args)
     else:

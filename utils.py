@@ -47,6 +47,26 @@ def make_image():
     new_im.save(f'outputs/images/all.png')
 
 
+def interpolate_image(input_dir, output_dir, nb_rows=1):
+
+    images_names = os.listdir(input_dir)
+    images_names = sorted(images_names, key=lambda x: int(x.replace('.png', '').split('_')[-1]))
+
+    # Build image with interpolation
+    width, height = Image.open(f'{input_dir}/{images_names[0]}').size
+    nb_cols = 1 + (len(images_names) - 1) // nb_rows
+    new_im = Image.new('RGB', (width * nb_cols, height * nb_rows))
+
+    for e, i in enumerate(images_names):
+        image = Image.open(f'{input_dir}/{i}')
+        row, col = e // nb_cols, e - nb_cols * (e // nb_cols)
+        new_im.paste(image, (col * width, row * height))
+
+    new_im.save(f'{output_dir}/interpolate.png')
+
+
 if __name__=='__main__':
-    evaluate()
-    make_image()
+
+    #evaluate()
+    #make_image()
+    interpolate_image('outputs/interpolate', 'outputs', nb_rows=3)
