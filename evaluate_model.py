@@ -23,7 +23,7 @@ def evaluate():
     run(START_MODEL_PATH, f'{OUT}/0', 10)
 
     # List the available checkpoints
-    checkpoints = os.listdir(ROOT)
+    checkpoints = sorted(os.listdir(ROOT), key=lambda x: int(x.split('_')[0]))
     for e, c in enumerate(checkpoints):
         model_path = f'{ROOT}/{c}/Gs.pth'
         run(model_path, f'{OUT}/{e + 1}', 10)
