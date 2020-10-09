@@ -44,4 +44,9 @@ def make_image():
             image = Image.open(f'{OUT}/{folder}/{name}')
             new_im.paste(image, (width * e_f, height * e_n))
 
-    new_im.save(f'outputs/images/all.jpg')
+    new_im.save(f'outputs/images/all.png')
+
+
+if __name__=='__main__':
+    evaluate()
+    make_image()
