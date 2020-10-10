@@ -23,13 +23,13 @@ def run_generate(model_path, out_path, seeds, truncation_psi=DEFAULT_TRUNCATION_
     Popen(shlex.split(cmd)).wait()
 
 
-def run_interpolate(model_path, out_path, seeds, number):
+def run_interpolate(model_path, out_path, seeds, number, truncation_psi=DEFAULT_TRUNCATION_PSI):
 
     seeds_str = ','.join(map(str, seeds))
 
     os.makedirs(out_path, exist_ok=True)
-    cmd = f'python run_generator.py interpolate --network={model_path} --seeds={seeds_str} --output={out_path} --number={number}'
-    Popen(shlex.split(cmd)).wait()    
+    cmd = f'python run_generator.py interpolate --network={model_path} --seeds={seeds_str} --output={out_path} --number={number} --truncation_psi={truncation_psi}'
+    Popen(shlex.split(cmd)).wait()
 
 
 def run_metrics():
@@ -76,11 +76,11 @@ def model_learning(start_model_path, checkpoints_path, output_path, seeds, trunc
     """
 
     # Generate images from start model
-    run_generate(start_model_path, f'{output_path}/0', number)
+    run_generate(start_model_path, f'{output_path}/0', seeds)
 
     # List the available checkpoints
     checkpoints = sorted(os.listdir(checkpoints_path), key=lambda x: int(x.split('_')[0]))
-    checkpoints = [c for e, c in enumerate(checkpoints_path) if e % sampling == 0]
+    checkpoints = [c for e, c in enumerate(checkpoints) if e % sampling == 0]
     for e, c in enumerate(checkpoints):
         run_generate(f'{checkpoints_path}/{c}/Gs.pth', f'{output_path}/{e + 1}', seeds, truncation_psi)
 
@@ -106,18 +106,18 @@ if __name__=='__main__':
     model_path = 'outputs/checkpoints/7000_2020-10-10_19-36-38/Gs.pth'
 
     # Generate images
-    output_dir = 'outputs/generated'
-    run_generate(model_path, output_dir, [50 + i for i in range(16)], truncation_psi=0.8)
-    build_image([f'{output_dir}/{i}' for i in os.listdir(output_dir)], 'outputs/generated.png', nb_rows=4)
+    #output_dir = 'outputs/generated_psi_08'
+    #run_generate(model_path, output_dir, [50 + i for i in range(16)], truncation_psi=0.8)
+    #build_image([f'{output_dir}/{i}' for i in os.listdir(output_dir)], 'outputs/generated.png', nb_rows=4)
 
     # Interpolate
     output_dir = 'outputs/interpolate'
-    run_interpolate(model_path, output_dir, [1234, 4321], 15)
+    run_interpolate(model_path, output_dir, [123, 5432], 15, truncation_psi=0.6)
     build_image(sorted([f'{output_dir}/{i}' for i in os.listdir(output_dir)]), 'outputs/interpolate.png', nb_rows = 4)
 
     # Evaluate a model
-    start_model_path = 'outputs/start_model/Gs.pt'
-    output_dir = 'outputs/evaluation'
-    model_learning(start_model_path, 'output/checkpoints', output_dir, [50 + i for i in range(10)])
+    #start_model_path = 'outputs/start_model/Gs.pt'
+    #output_dir = 'outputs/evaluation'
+    #model_learning(start_model_path, 'outputs/checkpoints', output_dir, [50 + i for i in range(10)], sampling=4)
 
 
