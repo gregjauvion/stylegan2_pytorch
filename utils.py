@@ -3,7 +3,6 @@ import os
 from subprocess import Popen
 import shlex
 from PIL import Image
-import matplotlib.pyplot as plt
 
 
 DEFAULT_TRUNCATION_PSI = 0.5
@@ -38,7 +37,7 @@ def run_metrics(model_path, out_path, data_dir, num_samples, gpu=True):
     os.makedirs(out_path, exist_ok=True)
     gpu_str = '--gpu=0' if gpu else ''
     cmd = f'python run_metrics.py fid --network={model_path} --num_samples={num_samples} --output={out_path} --data_dir={data_dir} {gpu_str}'
-    Popen(shlex.split(cmd)).wait()s
+    Popen(shlex.split(cmd)).wait()
 
 
 
@@ -102,7 +101,7 @@ def compute_metrics(start_model_path, checkpoints_path, output_path, data_dir, n
 
     # List all models being evaluated
     checkpoints = sorted(os.listdir(checkpoints_path), key=lambda x: int(x.split('_')[0]))
-    checkpoints = [c for e, c in enumerate(checkpoints) if e % sampling == 0]
+    checkpoints = [c for e, c in enumerate(checkpoints) if (e + 1) % sampling == 0]
     models = [start_model_path] + [f'{checkpoints_path}/{c}/Gs.pth' for c in checkpoints]
 
     # Run the metrics
@@ -118,6 +117,9 @@ def compute_metrics(start_model_path, checkpoints_path, output_path, data_dir, n
 #########
 
 if __name__=='__main__':
+
+    import matplotlib.pyplot as plt
+    import json
 
     # Path to the model
     start_model_path = 'outputs/start_model/Gs.pt'
@@ -139,6 +141,10 @@ if __name__=='__main__':
     #model_learning(start_model_path, 'outputs/checkpoints', output_dir, [50 + i for i in range(10)], sampling=4)
 
     # Compute the metrics
+    output_dir = 'outputs/metrics'
     compute_metrics(start_model_path, 'outputs/checkpoints', 'outputs/metrics', 'inputs/resized', 100, sampling=4, gpu=True)
 
+    #fids = []
+    #for i in sorted(os.listdir(output_dir), key=lambda x: int(x)):
+    #    fids.append(json.load(open(f'{output_dir}/{i}/metrics.json'))['FID:0k'])
 
