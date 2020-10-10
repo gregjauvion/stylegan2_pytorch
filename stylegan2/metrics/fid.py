@@ -9,6 +9,10 @@ from .. import models, utils
 from ..external_models import inception
 
 
+torch.multiprocessing.set_sharing_strategy('file_system')
+
+
+
 class _TruncatedDataset:
     """
     Truncates a dataset, making only part of it accessible

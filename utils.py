@@ -144,7 +144,7 @@ if __name__=='__main__':
     output_dir = 'outputs/metrics'
     compute_metrics(start_model_path, 'outputs/checkpoints', 'outputs/metrics', 'inputs/resized', 100, sampling=4, gpu=True)
 
-    #fids = []
-    #for i in sorted(os.listdir(output_dir), key=lambda x: int(x)):
-    #    fids.append(json.load(open(f'{output_dir}/{i}/metrics.json'))['FID:0k'])
+    fids = []
+    for i in sorted(os.listdir(output_dir), key=lambda x: int(x)):
+        fids.append(json.load(open(f'{output_dir}/{i}/metrics.json'))['FID:0k'])
 
