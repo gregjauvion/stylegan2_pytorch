@@ -103,7 +103,7 @@ def model_learning(start_model_path, checkpoints_path, output_path, seeds, trunc
 if __name__=='__main__':
 
     # Path to the model
-    model_path = 'outputs/start_model/Gs.pt'
+    model_path = 'outputs/checkpoints/7000_2020-10-10_19-36-38/Gs.pth'
 
     # Generate images
     output_dir = 'outputs/generated'
@@ -116,6 +116,7 @@ if __name__=='__main__':
     build_image(sorted([f'{output_dir}/{i}' for i in os.listdir(output_dir)]), 'outputs/interpolate.png', nb_rows = 4)
 
     # Evaluate a model
+    start_model_path = 'outputs/start_model/Gs.pt'
     output_dir = 'outputs/evaluation'
     model_learning(start_model_path, 'output/checkpoints', output_dir, [50 + i for i in range(10)])
 
