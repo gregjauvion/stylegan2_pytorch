@@ -70,7 +70,7 @@ def build_image(input_paths, output_path, nb_rows=1):
 #########
 
 
-def model_learning(start_model_path, checkpoints_path, output_path, seeds, truncation_psi=DEFAULT_TRUNCATION_PSI):
+def model_learning(start_model_path, checkpoints_path, output_path, seeds, truncation_psi=DEFAULT_TRUNCATION_PSI, sampling=1):
     """
     Generate images at each checkpoint found
     """
@@ -80,6 +80,7 @@ def model_learning(start_model_path, checkpoints_path, output_path, seeds, trunc
 
     # List the available checkpoints
     checkpoints = sorted(os.listdir(checkpoints_path), key=lambda x: int(x.split('_')[0]))
+    checkpoints = [c for e, c in enumerate(checkpoints_path) if e%%sampling==0]
     for e, c in enumerate(checkpoints):
         run_generate(f'{checkpoints_path}/{c}/Gs.pth', f'{output_path}/{e + 1}', seeds, truncation_psi)
 
