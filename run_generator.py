@@ -424,7 +424,6 @@ def interpolate(G, args):
     all_latents, all_labels, all_noise_tensors = get_batch(seed_1, seed_2)
 
     for i in range(0, all_latents.shape[0], args.batch_size):
-        print(i)
         latents, labels, noise_tensors = all_latents[i: i+args.batch_size], all_labels[i: i+args.batch_size] if all_labels else None, [n[i: i+args.batch_size] for n in all_noise_tensors] if all_noise_tensors else None
         if noise_tensors is not None:
             G.static_noise(noise_tensors=noise_tensors)
@@ -433,7 +432,7 @@ def interpolate(G, args):
         images = utils.tensor_to_PIL(
             generated, pixel_min=args.pixel_min, pixel_max=args.pixel_max)
         for img in images:
-            img.save(os.path.join(args.output, f'{seed_1}_{seed_2}_interpolate_{i}.png'))
+            img.save(os.path.join(args.output, 'interpolate_%04d.png' % i))
             progress.step()
 
     progress.write('Done!', step=False)

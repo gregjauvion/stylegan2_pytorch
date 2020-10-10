@@ -5,68 +5,117 @@ import shlex
 from PIL import Image
 
 
-START_MODEL_PATH = 'outputs/start_model/Gs.pt'
-ROOT = 'outputs/checkpoints'
-OUT = 'outputs/images'
+DEFAULT_TRUNCATION_PSI = 0.5
 
+#########
+# Run commands
+#########
 
-def run(model_path, out_path, number):
+def run_generate(model_path, out_path, seeds, truncation_psi=DEFAULT_TRUNCATION_PSI):
+    """
+    with higher psi, you can get higher diversity on the generated images but it also has a higher chance of generating weird or broken faces
+    """
+
+    seeds_str = ','.join(map(str, seeds))
 
     os.makedirs(out_path, exist_ok=True)
-    cmd = f'python run_generator.py generate_images --network={model_path} --seeds=5001-{5000 + number} --truncation_psi=0.5 --output={out_path}'
+    cmd = f'python run_generator.py generate_images --network={model_path} --seeds={seeds_str} --output={out_path} --truncation_psi={truncation_psi}'
     Popen(shlex.split(cmd)).wait()
 
 
-def evaluate():
+def run_interpolate(model_path, out_path, seeds, number):
 
-    # Run start model
-    run(START_MODEL_PATH, f'{OUT}/0', 10)
+    seeds_str = ','.join(map(str, seeds))
 
-    # List the available checkpoints
-    checkpoints = sorted(os.listdir(ROOT), key=lambda x: int(x.split('_')[0]))
-    for e, c in enumerate(checkpoints):
-        model_path = f'{ROOT}/{c}/Gs.pth'
-        run(model_path, f'{OUT}/{e + 1}', 10)
+    os.makedirs(out_path, exist_ok=True)
+    cmd = f'python run_generator.py interpolate --network={model_path} --seeds={seeds_str} --output={out_path} --number={number}'
+    Popen(shlex.split(cmd)).wait()    
 
 
-def make_image():
-
-    images_names = os.listdir(f'{OUT}/0')
-    folders = list(map(str, sorted(map(int, filter(lambda x: x!='.DS_Store', os.listdir(OUT))))))
-
-    # Build big image
-    width, height = Image.open(f'{OUT}/{folders[0]}/{images_names[0]}').size
-    total_width, total_height = width * len(folders), height * len(images_names)
-    new_im = Image.new('RGB', (total_width, total_height))
-
-    for e_f, folder in enumerate(folders):
-        for e_n, name in enumerate(images_names):
-            image = Image.open(f'{OUT}/{folder}/{name}')
-            new_im.paste(image, (width * e_f, height * e_n))
-
-    new_im.save(f'outputs/images/all.png')
+def run_metrics():
+    # TODO
+    pass
 
 
-def interpolate_image(input_dir, output_dir, nb_rows=1):
 
-    images_names = os.listdir(input_dir)
-    images_names = sorted(images_names, key=lambda x: int(x.replace('.png', '').split('_')[-1]))
+#########
+# Image utilities
+#########
 
-    # Build image with interpolation
-    width, height = Image.open(f'{input_dir}/{images_names[0]}').size
-    nb_cols = 1 + (len(images_names) - 1) // nb_rows
+
+def build_image(input_paths, output_path, nb_rows=1):
+    """
+    Build an image concatenating all images specified with input_paths
+    All iamges have the same resolution.
+    nb_rows is the number of rows in the output image.
+    """
+
+    width, height = Image.open(f'{input_paths[0]}').size
+    nb_cols = 1 + (len(input_paths) - 1) // nb_rows
     new_im = Image.new('RGB', (width * nb_cols, height * nb_rows))
 
-    for e, i in enumerate(images_names):
-        image = Image.open(f'{input_dir}/{i}')
+    for e, i in enumerate(input_paths):
+        image = Image.open(i)
         row, col = e // nb_cols, e - nb_cols * (e // nb_cols)
         new_im.paste(image, (col * width, row * height))
 
-    new_im.save(f'{output_dir}/interpolate.png')
+    new_im.save(output_path)
 
+
+
+
+
+#########
+# Final functions
+#########
+
+
+def model_learning(start_model_path, checkpoints_path, output_path, seeds, truncation_psi=DEFAULT_TRUNCATION_PSI):
+    """
+    Generate images at each checkpoint found
+    """
+
+    # Generate images from start model
+    run_generate(start_model_path, f'{output_path}/0', number)
+
+    # List the available checkpoints
+    checkpoints = sorted(os.listdir(checkpoints_path), key=lambda x: int(x.split('_')[0]))
+    for e, c in enumerate(checkpoints):
+        run_generate(f'{checkpoints_path}/{c}/Gs.pth', f'{output_path}/{e + 1}', seeds, truncation_psi)
+
+    # Build image
+    all_paths = []
+    for s in seeds:
+        s_path = 'seed%04d.png' % s
+        for e in range(len(checkpoints) + 1):
+            all_paths.append(f'{output_path}/{e}/{s_path}')
+
+    build_image(all_paths, f'{output_path}/evaluation.png', nb_rows=len(seeds))
+
+
+
+
+#########
+# Run
+#########
 
 if __name__=='__main__':
 
-    #evaluate()
-    #make_image()
-    interpolate_image('outputs/interpolate', 'outputs', nb_rows=3)
+    # Path to the model
+    model_path = 'outputs/start_model/Gs.pt'
+
+    # Generate images
+    output_dir = 'outputs/generated'
+    run_generate(model_path, output_dir, [50 + i for i in range(16)], truncation_psi=0.8)
+    build_image([f'{output_dir}/{i}' for i in os.listdir(output_dir)], 'outputs/generated.png', nb_rows=4)
+
+    # Interpolate
+    output_dir = 'outputs/interpolate'
+    run_interpolate(model_path, output_dir, [1234, 4321], 15)
+    build_image(sorted([f'{output_dir}/{i}' for i in os.listdir(output_dir)]), 'outputs/interpolate.png', nb_rows = 4)
+
+    # Evaluate a model
+    output_dir = 'outputs/evaluation'
+    model_learning(start_model_path, 'output/checkpoints', output_dir, [50 + i for i in range(10)])
+
+
