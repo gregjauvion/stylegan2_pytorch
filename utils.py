@@ -3,6 +3,7 @@ import os
 from subprocess import Popen
 import shlex
 from PIL import Image
+import matplotlib.pyplot as plt
 
 
 DEFAULT_TRUNCATION_PSI = 0.5
@@ -32,9 +33,12 @@ def run_interpolate(model_path, out_path, seeds, number, truncation_psi=DEFAULT_
     Popen(shlex.split(cmd)).wait()
 
 
-def run_metrics():
-    # TODO
-    pass
+def run_metrics(model_path, out_path, data_dir, num_samples, gpu=True):
+    
+    os.makedirs(out_path, exist_ok=True)
+    gpu_str = '--gpu=0' if gpu else ''
+    cmd = f'python run_metrics.py fid --network={model_path} --num_samples={num_samples} --output={out_path} --data_dir={data_dir} {gpu_str}'
+    Popen(shlex.split(cmd)).wait()s
 
 
 
@@ -94,6 +98,19 @@ def model_learning(start_model_path, checkpoints_path, output_path, seeds, trunc
     build_image(all_paths, f'{output_path}/evaluation.png', nb_rows=len(seeds))
 
 
+def compute_metrics(start_model_path, checkpoints_path, output_path, data_dir, num_samples, sampling=1, gpu=True):
+
+    # List all models being evaluated
+    checkpoints = sorted(os.listdir(checkpoints_path), key=lambda x: int(x.split('_')[0]))
+    checkpoints = [c for e, c in enumerate(checkpoints) if e % sampling == 0]
+    models = [start_model_path] + [f'{checkpoints_path}/{c}/Gs.pth' for c in checkpoints]
+
+    # Run the metrics
+    for e, m in enumerate(models):
+        print(f'Evaluating model {m}')
+        run_metrics(m, f'{output_path}/{e}', data_dir, num_samples, gpu=True)
+
+
 
 
 #########
@@ -103,6 +120,7 @@ def model_learning(start_model_path, checkpoints_path, output_path, seeds, trunc
 if __name__=='__main__':
 
     # Path to the model
+    start_model_path = 'outputs/start_model/Gs.pt'
     model_path = 'outputs/checkpoints/7000_2020-10-10_19-36-38/Gs.pth'
 
     # Generate images
@@ -111,13 +129,16 @@ if __name__=='__main__':
     #build_image([f'{output_dir}/{i}' for i in os.listdir(output_dir)], 'outputs/generated.png', nb_rows=4)
 
     # Interpolate
-    output_dir = 'outputs/interpolate'
-    run_interpolate(model_path, output_dir, [123, 5432], 15, truncation_psi=0.6)
-    build_image(sorted([f'{output_dir}/{i}' for i in os.listdir(output_dir)]), 'outputs/interpolate.png', nb_rows = 4)
+    #output_dir = 'outputs/interpolate'
+    #run_interpolate(model_path, output_dir, [123, 5432], 15, truncation_psi=0.6)
+    #build_image(sorted([f'{output_dir}/{i}' for i in os.listdir(output_dir)]), 'outputs/interpolate.png', nb_rows = 4)
 
     # Evaluate a model
-    #start_model_path = 'outputs/start_model/Gs.pt'
+    #
     #output_dir = 'outputs/evaluation'
     #model_learning(start_model_path, 'outputs/checkpoints', output_dir, [50 + i for i in range(10)], sampling=4)
+
+    # Compute the metrics
+    compute_metrics(start_model_path, 'outputs/checkpoints', 'outputs/metrics', 'inputs/resized', 100, sampling=4, gpu=True)
 
 
