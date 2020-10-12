@@ -40,6 +40,14 @@ def run_metrics(model_path, out_path, data_dir, num_samples, gpu=True):
     Popen(shlex.split(cmd)).wait()
 
 
+def run_projection(model_path, out_path, input_path, num_steps, num_snapshots=5, gpu=True):
+
+    os.makedirs(out_path, exist_ok=True)
+    gpu_str = '--gpu=0' if gpu else ''
+    cmd = f'python run_projector.py project_real_images --network={model_path} --num_steps={num_steps} --num_snapshots={num_snapshots} --output={out_path} --data_dir={data_dir} {gpu_str}'
+    Popen(shlex.split(cmd)).wait()
+
+
 
 #########
 # Image utilities
@@ -144,7 +152,7 @@ if __name__=='__main__':
     #output_dir = 'outputs/metrics'
     #compute_metrics(start_model_path, 'outputs/checkpoints', 'outputs/metrics', 'inputs/resized', 10000, sampling=1, gpu=True)
 
-    #fids = []
-    #for i in sorted(os.listdir(output_dir), key=lambda x: int(x)):
-    #    fids.append(json.load(open(f'{output_dir}/{i}/metrics.json'))['FID:0k'])
+    fids = []
+    for i in sorted(os.listdir(output_dir), key=lambda x: int(x)):
+        fids.append(json.load(open(f'{output_dir}/{i}/metrics.json'))['FID:1k'])
 
