@@ -1,0 +1,152 @@
+<h1>Génération d'images : principaux résultats</h1>
+
+<h2>Apprentissage du modèle</h2>
+
+<script>
+    function getImageNameLearning(select_value, slider_value) {
+        return "inputs/evaluation/" + slider_value + "/" + select_value + ".png"
+    }
+    function initSliderLearning() {
+        document.getElementById("learning_images_range").value = 0;
+
+        var select_value = document.getElementById("learning_images_select").selectedOptions[0].value;
+        document.getElementById("learning_images_left").setAttribute("src", getImageNameLearning(select_value, 0));
+        document.getElementById("learning_images_right").setAttribute("src", getImageNameLearning(select_value, 11));
+    }
+    function updateImageLearning() {
+        // Get selector & slider values
+        var select_value = document.getElementById("learning_images_select").selectedOptions[0].value;
+        var slider_value = document.getElementById("learning_images_range").value;
+
+        // Change image
+        document.getElementById("learning_image").setAttribute("src", getImageNameLearning(select_value, slider_value)) 
+    }
+</script>
+
+<div class="learning_images">
+    <div>
+        <select id="learning_images_select" onchange="initSliderLearning(); updateImageLearning()">
+            <option>seed0050</option>
+            <option>seed0051</option>
+            <option>seed0052</option>
+            <option>seed0053</option>
+            <option>seed0054</option>
+            <option>seed0055</option>
+            <option>seed0056</option>
+            <option>seed0057</option>
+            <option>seed0058</option>
+            <option>seed0059</option>
+        </select>
+    </div>
+
+    <div>
+        <img id="learning_images_left" src="inputs/evaluation/0/seed0050.png" alt="" width="200" height="200">
+        <img id="learning_images_right" src="inputs/evaluation/11/seed0050.png" alt="" width="200" height="200">
+    </div>
+
+    <div>
+        <img id="learning_image" src="inputs/evaluation/0/seed0050.png" alt="" width="400" height="400">
+    </div>
+
+    <div>
+        <input type="range" min="0" max="11" value="0" class="slider" id="learning_images_range" oninput="updateImageLearning()">
+    </div>
+</div>
+
+<div>
+    <figure>
+        <img id="learning" src="inputs/evaluation/evaluation.png" alt="Apprentissage du modèle" width="50%">
+        <figcaption>GANs training process</figcaption>
+    </figure>
+</div>
+
+
+<h2>Images générées</h2>
+
+<script>
+    function updateImageGenerated() {
+        // Get selector & slider values
+        var psi_value = document.getElementById("psi_select").selectedOptions[0].value;
+        console.log(psi_value);
+
+        // Change image
+        console.log("inputs/generation/generated_" + psi_value + ".png");
+        document.getElementById("generated_image").setAttribute("src", "inputs/generation/generated_" + psi_value + ".png");
+    }
+</script>
+
+<div class="generated_images">
+    <div>
+        <select id="psi_select" onchange="updateImageGenerated()">
+            <option>02</option>
+            <option>05</option>
+            <option>08</option>
+        </select>
+    </div>
+
+    <div>
+        <img id="generated_image" src="inputs/generation/generated_05.png" alt="" width="50%">
+    </div>
+</div>
+
+
+<h2>Interpolation</h2>
+
+<script>
+    function updateImageInterpolation() {
+        var slider_value = document.getElementById("interpolation_images_range").value;
+
+        document.getElementById("interpolation_image").setAttribute("src", "inputs/interpolation/interpolate/interpolate_00" + (slider_value<10 ? ("0" + slider_value) : slider_value) + ".png")
+    }
+</script>
+
+<div class="interpolated_images">
+    <div>
+        <img id="interpolation_image_left" src="inputs/interpolation/interpolate/interpolate_0000.png" alt="" width="200" height="200">
+        <img id="interpolation_image_right" src="inputs/interpolation/interpolate/interpolate_0024.png" alt="" width="200" height="200">
+    </div>
+
+    <div>
+        <img id="interpolation_image" src="inputs/interpolation/interpolate/interpolate_0000.png" alt="" width="400" height="400">
+    </div>
+
+    <div>
+        <input type="range" min="0" max="24" value="0" class="slider" id="interpolation_images_range" oninput="updateImageInterpolation()">
+    </div>
+</div>
+
+
+<h2>Projection</h2>
+
+<div>
+    <div>
+        <img src="inputs/projection/image0000-target.png" alt="" width="400" height="400">
+        <img src="inputs/projection/image0000-step0801.png" alt="" width="400" height="400">
+    </div>
+
+    <div>
+        <img src="inputs/projection/image0001-target.png" alt="" width="400" height="400">
+        <img src="inputs/projection/image0001-step0801.png" alt="" width="400" height="400">
+    </div>
+
+    <div>
+        <img src="inputs/projection/image0002-target.png" alt="" width="400" height="400">
+        <img src="inputs/projection/image0002-step0801.png" alt="" width="400" height="400">
+    </div>
+</div>
+
+<h2>Amélioration de la résolution</h2>
+
+<div>
+    <div>
+        <img src="inputs/resolution/real.png" alt="" width="400" height="400">
+        <img src="inputs/resolution/real_enhance.jpg" alt="" width="400" height="400">
+        <img src="inputs/resolution/real_deepai.jpg" alt="" width="400" height="400">
+    </div>
+
+    <div>
+        <img src="inputs/resolution/generated.png" alt="" width="400" height="400">
+        <img src="inputs/resolution/generated_enhance.jpg" alt="" width="400" height="400">
+        <img src="inputs/resolution/generated_deepai.jpg" alt="" width="400" height="400">
+    </div>
+</div>
