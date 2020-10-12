@@ -44,7 +44,7 @@ def run_projection(model_path, out_path, input_path, num_steps=1000, num_snapsho
 
     os.makedirs(out_path, exist_ok=True)
     gpu_str = '--gpu=0' if gpu else ''
-    cmd = f'python run_projector.py project_real_images --network={model_path} --num_steps={num_steps} --num_snapshots={num_snapshots} --output={out_path} --data_dir={data_dir} {gpu_str}'
+    cmd = f'python run_projector.py project_real_images --network={model_path} --num_steps={num_steps} --num_snapshots={num_snapshots} --output={out_path} --data_dir={input_path} {gpu_str}'
     Popen(shlex.split(cmd)).wait()
 
 
@@ -143,9 +143,13 @@ if __name__=='__main__':
     #build_image([f'{output_dir}/{i}' for i in os.listdir(output_dir)], 'outputs/generated.png', nb_rows=4)
 
     # Interpolate
-    #output_dir = 'outputs/interpolate'
-    #run_interpolate(model_path, output_dir, [123, 5432], 24, truncation_psi=0.6)
+    output_dir = 'outputs/interpolate'
+    run_interpolate(model_path, output_dir, [3000, 4000], 24, truncation_psi=0.5)
     #build_image(sorted([f'{output_dir}/{i}' for i in os.listdir(output_dir)]), 'outputs/interpolate.png', nb_rows = 5)
+
+    # Projection
+    #output_dir = 'outputs/projection'
+    #run_projection(model_path, output_dir, 'inputs/projection', num_steps=1000, num_snapshots=5, gpu=True)
 
     # Evaluate a model
     #output_dir = 'outputs/evaluation'
@@ -155,15 +159,15 @@ if __name__=='__main__':
     #output_dir = 'outputs/metrics'
     #compute_metrics(start_model_path, 'outputs/checkpoints', 'outputs/metrics', 'inputs/resized', 10000, sampling=1, gpu=True)
 
-    fids_10, fids_20, fids_50 = [], [], []
-    for i in sorted(os.listdir(output_dir), key=lambda x: int(x)):
-        metrics = json.load(open(f'{output_dir}/{i}/metrics.json'))
-        if 'FID:10k' in metrics:
-            fids_10.append(metrics['FID:10k'])
-        if 'FID:20k' in metrics:
-            fids_20.append(metrics['FID:20k'])
-        if 'FID:50k' in metrics:
-            fids_50.append(metrics['FID:50k'])
+    #fids_10, fids_20, fids_50 = [], [], []
+    #for i in sorted(os.listdir(output_dir), key=lambda x: int(x)):
+    #    metrics = json.load(open(f'{output_dir}/{i}/metrics.json'))
+    #    if 'FID:10k' in metrics:
+    #        fids_10.append(metrics['FID:10k'])
+    #    if 'FID:20k' in metrics:
+    #        fids_20.append(metrics['FID:20k'])
+    #    if 'FID:50k' in metrics:
+    #        fids_50.append(metrics['FID:50k'])
 
-    plt.plot(fids_10, label='10') ; plt.plot(fids_20, label='20') ; plt.plot(fids_50, label='50')
-    plt.legend() ; plt.grid() ; plt.show()
+    #plt.plot(fids_10, label='10') ; plt.plot(fids_20, label='20') ; plt.plot(fids_50, label='50')
+    #plt.legend() ; plt.grid() ; plt.show()
