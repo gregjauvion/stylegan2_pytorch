@@ -40,7 +40,7 @@ def run_metrics(model_path, out_path, data_dir, num_samples, gpu=True):
     Popen(shlex.split(cmd)).wait()
 
 
-def run_projection(model_path, out_path, input_path, num_steps, num_snapshots=5, gpu=True):
+def run_projection(model_path, out_path, input_path, num_steps=1000, num_snapshots=5, gpu=True):
 
     os.makedirs(out_path, exist_ok=True)
     gpu_str = '--gpu=0' if gpu else ''
@@ -105,7 +105,10 @@ def model_learning(start_model_path, checkpoints_path, output_path, seeds, trunc
     build_image(all_paths, f'{output_path}/evaluation.png', nb_rows=len(seeds))
 
 
-def compute_metrics(start_model_path, checkpoints_path, output_path, data_dir, num_samples, sampling=1, gpu=True):
+def compute_metrics(start_model_path, checkpoints_path, output_path, data_dir, num_samples=10000, sampling=1, gpu=True):
+    """
+    num_samples: 10k looks OK to compute the FID, however it is a bit higher than when using 50k samples
+    """
 
     # List all models being evaluated
     checkpoints = sorted(os.listdir(checkpoints_path), key=lambda x: int(x.split('_')[0]))
@@ -152,7 +155,15 @@ if __name__=='__main__':
     output_dir = 'outputs/metrics'
     compute_metrics(start_model_path, 'outputs/checkpoints', 'outputs/metrics', 'inputs/resized', 20000, sampling=1, gpu=True)
 
-    fids = []
+    fids_10, fids_20, fids_50 = [], [], []
     for i in sorted(os.listdir(output_dir), key=lambda x: int(x)):
-        fids.append(json.load(open(f'{output_dir}/{i}/metrics.json'))['FID:1k'])
+        metrics = json.load(open(f'{output_dir}/{i}/metrics.json'))
+        if 'FID:10k' in metrics:
+            fids_10.append(metrics['FID:10k'])
+        if 'FID:20k' in metrics:
+            fids_20.append(metrics['FID:20k'])
+        if 'FID:50k' in metrics:
+            fids_50.append(metrics['FID:50k'])
 
+    plt.plot(fids_10, label='10') ; plt.plot(fids_20, label='20') ; plt.plot(fids_50, label='50')
+    plt.legend() ; plt.grid() ; plt.show()
