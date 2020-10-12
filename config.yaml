@@ -7,8 +7,8 @@ channels: [128, 256, 512, 512, 512, 512, 512]
 #label: 0
 
 # Load the initial model here
-g_file: 'outputs/start_model/Gs.pt'
-d_file: 'outputs/start_model/D.pt'
+#g_file: 'outputs/start_model/Gs.pt'
+#d_file: 'outputs/start_model/D.pt'
 
 # Numbei of epochs
 iterations: 20000
@@ -23,6 +23,7 @@ checkpoint_interval: 250
 
 # Input data
 data_dir: 'inputs/resized'
+# Resizing should not be performed here (not good in this library)
 data_resize: True
 mirror_augment: True
 

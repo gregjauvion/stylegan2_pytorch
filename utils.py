@@ -123,26 +123,26 @@ if __name__=='__main__':
 
     # Path to the model
     start_model_path = 'outputs/start_model/Gs.pt'
-    model_path = 'outputs/checkpoints/7000_2020-10-10_19-36-38/Gs.pth'
+    model_path = 'outputs/checkpoints/11000_2020-10-12_09-28-30/Gs.pth'
 
     # Generate images
+    #psi = 0.8
     #output_dir = 'outputs/generated_psi_08'
-    #run_generate(model_path, output_dir, [50 + i for i in range(16)], truncation_psi=0.8)
+    #run_generate(model_path, output_dir, [50 + i for i in range(16)], truncation_psi=psi)
     #build_image([f'{output_dir}/{i}' for i in os.listdir(output_dir)], 'outputs/generated.png', nb_rows=4)
 
     # Interpolate
     #output_dir = 'outputs/interpolate'
-    #run_interpolate(model_path, output_dir, [123, 5432], 15, truncation_psi=0.6)
-    #build_image(sorted([f'{output_dir}/{i}' for i in os.listdir(output_dir)]), 'outputs/interpolate.png', nb_rows = 4)
+    #run_interpolate(model_path, output_dir, [123, 5432], 24, truncation_psi=0.6)
+    #build_image(sorted([f'{output_dir}/{i}' for i in os.listdir(output_dir)]), 'outputs/interpolate.png', nb_rows = 5)
 
     # Evaluate a model
-    #
     #output_dir = 'outputs/evaluation'
-    #model_learning(start_model_path, 'outputs/checkpoints', output_dir, [50 + i for i in range(10)], sampling=4)
+    #model_learning(start_model_path, 'outputs/checkpoints', output_dir, [50 + i for i in range(10)])
 
     # Compute the metrics
-    output_dir = 'outputs/metrics'
-    compute_metrics(start_model_path, 'outputs/checkpoints', 'outputs/metrics', 'inputs/resized', 20000, sampling=1, gpu=True)
+    #output_dir = 'outputs/metrics'
+    #compute_metrics(start_model_path, 'outputs/checkpoints', 'outputs/metrics', 'inputs/resized', 10000, sampling=1, gpu=True)
 
     #fids = []
     #for i in sorted(os.listdir(output_dir), key=lambda x: int(x)):
