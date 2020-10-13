@@ -128,10 +128,28 @@
         <img src="inputs/projection/image0001-target.png" alt="" width="400" height="400">
         <img src="inputs/projection/image0001-step0801.png" alt="" width="400" height="400">
     </div>
+</div>
+
+<script>
+    function updateImageInterpolation2() {
+        var slider_value = document.getElementById("interpolation_images_2_range").value;
+
+        document.getElementById("interpolation_image_2").setAttribute("src", "inputs/interpolation/interpolate_bis/interpolate_00" + (slider_value<10 ? ("0" + slider_value) : slider_value) + ".png")
+    }
+</script>
+
+<div class="interpolated_images_2">
+    <div>
+        <img id="interpolation_image_2_left" src="inputs/interpolation/interpolate_bis/interpolate_0000.png" alt="" width="200" height="200">
+        <img id="interpolation_image_2_right" src="inputs/interpolation/interpolate_bis/interpolate_0024.png" alt="" width="200" height="200">
+    </div>
 
     <div>
-        <img src="inputs/projection/image0002-target.png" alt="" width="400" height="400">
-        <img src="inputs/projection/image0002-step0801.png" alt="" width="400" height="400">
+        <img id="interpolation_image_2" src="inputs/interpolation/interpolate_bis/interpolate_0000.png" alt="" width="400" height="400">
+    </div>
+
+    <div>
+        <input type="range" min="0" max="24" value="0" class="slider" id="interpolation_images_2_range" oninput="updateImageInterpolation2()">
     </div>
 </div>
 
