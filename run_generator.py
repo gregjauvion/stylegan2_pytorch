@@ -119,8 +119,16 @@ def get_arg_parser():
         '--seeds',
         help='List of random seeds for generating images. ' + range_desc,
         type=utils.range_type,
-        required=True,
+        default=None,
         metavar='RANGE'
+    )
+
+    generate_images_parser.add_argument(
+        '--latents',
+        help='List of paths to files with latent factors. ' + range_desc,
+        type=str,
+        default=None,
+        metavar='DIR'
     )
 
     _add_shared_arguments(generate_images_parser)
@@ -140,13 +148,21 @@ def get_arg_parser():
         '--seeds',
         help='List of random seeds for generating images. ' + range_desc,
         type=utils.range_type,
-        required=True,
+        default=None,
         metavar='RANGE'
     )
 
     interpolate_parser.add_argument(
+        '--latents',
+        help='List of paths to files with latent factors. ' + range_desc,
+        type=str,
+        default=None,
+        metavar='DIR'
+    )
+
+    interpolate_parser.add_argument(
         '--number',
-        help='Number of images. ' + range_desc,
+        help='Number of images.' + range_desc,
         type=int,
         required=True,
         metavar='VALUE'
@@ -343,20 +359,34 @@ def generate_images(G, args):
             noise_tensors = None
         return latents, labels, noise_tensors
 
-    progress = utils.ProgressWriter(len(args.seeds))
+    nb_images = len(args.seeds) if args.seeds else len(args.latents.split(','))
+    progress = utils.ProgressWriter(nb_images)
     progress.write('Generating images...', step=False)
 
-    for i in range(0, len(args.seeds), args.batch_size):
-        latents, labels, noise_tensors = get_batch(args.seeds[i: i + args.batch_size])
-        if noise_tensors is not None:
-            G.static_noise(noise_tensors=noise_tensors)
-        with torch.no_grad():
-            generated = G(latents, labels=labels)
-        images = utils.tensor_to_PIL(
-            generated, pixel_min=args.pixel_min, pixel_max=args.pixel_max)
-        for seed, img in zip(args.seeds[i: i + args.batch_size], images):
-            img.save(os.path.join(args.output, 'seed%04d.png' % seed))
-            progress.step()
+    for i in range(0, nb_images, args.batch_size):
+        if args.seeds:
+            latents, labels, noise_tensors = get_batch(args.seeds[i: i + args.batch_size])
+            if noise_tensors is not None:
+                G.static_noise(noise_tensors=noise_tensors)
+            with torch.no_grad():
+                generated = G(latents, labels=labels)
+            images = utils.tensor_to_PIL(
+                generated, pixel_min=args.pixel_min, pixel_max=args.pixel_max)
+            for seed, img in zip(args.seeds[i: i + args.batch_size], images):
+                img.save(os.path.join(args.output, 'seed%04d.png' % seed))
+                progress.step()
+
+        if args.latents:
+            # Assume that batch_size==1
+            latents = torch.load(args.latents.split(',')[i])
+            with torch.no_grad():
+                generated = G.G_synthesis(latents=latents)
+            images = utils.tensor_to_PIL(
+                generated, pixel_min=args.pixel_min, pixel_max=args.pixel_max)
+            for img in images:
+                img.save(os.path.join(args.output, 'latent%04d.png' % i))
+                progress.step()
+
 
     progress.write('Done!', step=False)
     progress.close()
@@ -417,26 +447,33 @@ def interpolate(G, args):
             noise_tensors = None
         return latents, labels, noise_tensors
 
-    progress = utils.ProgressWriter(len(args.seeds))
-    progress.write('Generating images...', step=False)
-
-    seed_1, seed_2 = args.seeds
-    all_latents, all_labels, all_noise_tensors = get_batch(seed_1, seed_2)
+    if args.seeds:
+        seed_1, seed_2 = args.seeds
+        all_latents, all_labels, all_noise_tensors = get_batch(seed_1, seed_2)
+    if args.latents:
+        latent_1, latent_2 = torch.load(args.latents.split(',')[0]), torch.load(args.latents.split(',')[1])
+        all_latents = []
+        for nb in range(args.number + 1):
+            step = nb / args.number
+            all_latents.append(latent_2 * step + latent_1 * (1 - step))
+        all_latents = torch.stack(all_latents, dim=0).to(device=device, dtype=torch.float32)
 
     for i in range(0, all_latents.shape[0], args.batch_size):
-        latents, labels, noise_tensors = all_latents[i: i+args.batch_size], all_labels[i: i+args.batch_size] if all_labels else None, [n[i: i+args.batch_size] for n in all_noise_tensors] if all_noise_tensors else None
-        if noise_tensors is not None:
-            G.static_noise(noise_tensors=noise_tensors)
-        with torch.no_grad():
-            generated = G(latents, labels=labels)
+        if args.seeds:
+            latents, labels, noise_tensors = all_latents[i: i+args.batch_size], all_labels[i: i+args.batch_size] if all_labels else None, [n[i: i+args.batch_size] for n in all_noise_tensors] if all_noise_tensors else None
+            if noise_tensors is not None:
+                G.static_noise(noise_tensors=noise_tensors)
+            with torch.no_grad():
+                generated = G(latents, labels=labels)
+
+        if args.latents:
+            with torch.no_grad():
+                generated = G.G_synthesis(latents=all_latents[i])
+
         images = utils.tensor_to_PIL(
             generated, pixel_min=args.pixel_min, pixel_max=args.pixel_max)
         for img in images:
             img.save(os.path.join(args.output, 'interpolate_%04d.png' % i))
-            progress.step()
-
-    progress.write('Done!', step=False)
-    progress.close()
 
 
 #----------------------------------------------------------------------------

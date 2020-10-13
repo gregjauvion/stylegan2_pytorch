@@ -11,24 +11,26 @@ DEFAULT_TRUNCATION_PSI = 0.5
 # Run commands
 #########
 
-def run_generate(model_path, out_path, seeds, truncation_psi=DEFAULT_TRUNCATION_PSI):
+def run_generate(model_path, out_path, seeds=None, latents=None, truncation_psi=DEFAULT_TRUNCATION_PSI):
     """
     with higher psi, you can get higher diversity on the generated images but it also has a higher chance of generating weird or broken faces
     """
 
-    seeds_str = ','.join(map(str, seeds))
+    seeds_or_latents = ','.join(map(str, seeds)) if seeds else ','.join(latents)
+    seeds_or_latents_arg = f'--seeds={seeds_or_latents}' if seeds else f'--latents={seeds_or_latents}'
 
     os.makedirs(out_path, exist_ok=True)
-    cmd = f'python run_generator.py generate_images --network={model_path} --seeds={seeds_str} --output={out_path} --truncation_psi={truncation_psi}'
+    cmd = f'python run_generator.py generate_images --network={model_path} {seeds_or_latents_arg} --output={out_path} --truncation_psi={truncation_psi}'
     Popen(shlex.split(cmd)).wait()
 
 
-def run_interpolate(model_path, out_path, seeds, number, truncation_psi=DEFAULT_TRUNCATION_PSI):
+def run_interpolate(model_path, out_path, number, seeds=None, latents=None, truncation_psi=DEFAULT_TRUNCATION_PSI):
 
-    seeds_str = ','.join(map(str, seeds))
+    seeds_or_latents = ','.join(map(str, seeds)) if seeds else ','.join(latents)
+    seeds_or_latents_arg = f'--seeds={seeds_or_latents}' if seeds else f'--latents={seeds_or_latents}'
 
     os.makedirs(out_path, exist_ok=True)
-    cmd = f'python run_generator.py interpolate --network={model_path} --seeds={seeds_str} --output={out_path} --number={number} --truncation_psi={truncation_psi}'
+    cmd = f'python run_generator.py interpolate --network={model_path} {seeds_or_latents_arg} --output={out_path} --number={number} --truncation_psi={truncation_psi}'
     Popen(shlex.split(cmd)).wait()
 
 
@@ -139,12 +141,12 @@ if __name__=='__main__':
     # Generate images
     #psi = 0.8
     #output_dir = 'outputs/generated_psi_08'
-    #run_generate(model_path, output_dir, [50 + i for i in range(16)], truncation_psi=psi)
+    #run_generate(model_path, output_dir, seeds=[50 + i for i in range(16)], truncation_psi=psi)
     #build_image([f'{output_dir}/{i}' for i in os.listdir(output_dir)], 'outputs/generated.png', nb_rows=4)
 
     # Interpolate
     output_dir = 'outputs/interpolate'
-    run_interpolate(model_path, output_dir, [3000, 4000], 24, truncation_psi=0.5)
+    run_interpolate(model_path, output_dir, 24, seeds=[3000, 4000], truncation_psi=0.5)
     #build_image(sorted([f'{output_dir}/{i}' for i in os.listdir(output_dir)]), 'outputs/interpolate.png', nb_rows = 5)
 
     # Projection

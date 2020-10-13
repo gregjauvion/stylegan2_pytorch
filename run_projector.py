@@ -259,7 +259,7 @@ def project_images(G, images, name_prefix, args):
         target = images[i: i + args.batch_size]
         proj.start(
             target=target,
-            num_steps=args.num_steps,
+            num_steps=args.num_steps + 1,
             initial_learning_rate=args.initial_learning_rate,
             initial_noise_factor=args.initial_noise_factor,
             lr_rampdown_length=args.lr_rampdown_length,
@@ -282,8 +282,9 @@ def project_images(G, images, name_prefix, args):
                 generated = utils.tensor_to_PIL(
                     proj.generate(), pixel_min=args.pixel_min, pixel_max=args.pixel_max)
                 for k, image in enumerate(generated):
+                    torch.save(proj.get_dlatent(), os.path.join(args.output, name_prefix[i + k] + 'step%04d.pt' % j))
                     image.save(os.path.join(
-                        args.output, name_prefix[i + k] + 'step%04d.png' % (j + 1)))
+                        args.output, name_prefix[i + k] + 'step%04d.png' % j))
 
 #----------------------------------------------------------------------------
 
