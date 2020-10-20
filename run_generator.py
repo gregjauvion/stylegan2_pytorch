@@ -1,12 +1,14 @@
-import warnings
+
 import argparse
 import os
 from PIL import Image
 import numpy as np
 import torch
+from tqdm import tqdm
 
 import stylegan2
 from stylegan2 import utils
+from interpolation_utils import linear_interpolation, slerp_interpolation
 
 #----------------------------------------------------------------------------
 
@@ -168,6 +170,15 @@ def get_arg_parser():
         metavar='VALUE'
     )
 
+    interpolate_parser.add_argument(
+        '--type',
+        help='Interpolation type.',
+        type=str,
+        default='linear',
+        required=False,
+        metavar='DIR'
+    )
+
     _add_shared_arguments(interpolate_parser)
 
     style_mixing_example_parser = subparsers.add_parser(
@@ -212,19 +223,32 @@ def get_arg_parser():
 
     return parser
 
+
 #----------------------------------------------------------------------------
 
-def style_mixing_example(G, args):
-    assert max(args.style_layers) < len(G), \
-        'Style layer indices can not be larger than ' + \
-        'number of style layers ({}) of the generator.'.format(len(G))
+def set_device(G, args):
+    """ Select appropriate device and copy the model on it
+    """
+
     device = torch.device(args.gpu[0] if args.gpu else 'cpu')
     if device.index is not None:
         torch.cuda.set_device(device.index)
-    if len(args.gpu) > 1:
-        warnings.warn('Multi GPU is not available for style mixing example. Using device {}'.format(device))
+
     G.to(device)
+    return device
+
+
+def style_mixing_example(G, args):
+
+    assert max(args.style_layers) < len(G), \
+        'Style layer indices can not be larger than ' + \
+        'number of style layers ({}) of the generator.'.format(len(G))
+
+    # Set appropriate device
+    device = set_device(G, args)
+
     G.static_noise()
+
     latent_size, label_size = G.latent_size, G.label_size
     G_mapping, G_synthesis = G.G_mapping, G.G_synthesis
 
@@ -313,173 +337,92 @@ def style_mixing_example(G, args):
 
 #----------------------------------------------------------------------------
 
-def generate_images(G, args):
-    latent_size, label_size = G.latent_size, G.label_size
-    device = torch.device(args.gpu[0] if args.gpu else 'cpu')
-    if device.index is not None:
-        torch.cuda.set_device(device.index)
-    G.to(device)
-    if args.truncation_psi != 1:
-        G.set_truncation(truncation_psi=args.truncation_psi)
-    if len(args.gpu) > 1:
-        warnings.warn(
-            'Noise can not be randomized based on the seed ' + \
-            'when using more than 1 GPU device. Noise will ' + \
-            'now be randomized from default random state.'
-        )
-        G.random_noise()
-        G = torch.nn.DataParallel(G, device_ids=args.gpu)
-    else:
-        noise_reference = G.static_noise()
+def build_latents_names(type_, G, args):
+    """ type_ is 'generate' or 'interpolate'
+    """
 
-    def get_batch(seeds):
-        latents = []
-        labels = []
-        if len(args.gpu) <= 1:
-            noise_tensors = [[] for _ in noise_reference]
-        for seed in seeds:
-            rnd = np.random.RandomState(seed)
-            latents.append(torch.from_numpy(rnd.randn(latent_size)))
-            if len(args.gpu) <= 1:
-                for i, ref in enumerate(noise_reference):
-                    noise_tensors[i].append(torch.from_numpy(rnd.randn(*ref.size()[1:])))
-            if label_size:
-                labels.append(torch.tensor([rnd.randint(0, label_size)]))
-        latents = torch.stack(latents, dim=0).to(device=device, dtype=torch.float32)
-        if labels:
-            labels = torch.cat(labels, dim=0).to(device=device, dtype=torch.int64)
-        else:
-            labels = None
-        if len(args.gpu) <= 1:
-            noise_tensors = [
-                torch.stack(noise, dim=0).to(device=device, dtype=torch.float32)
-                for noise in noise_tensors
-            ]
-        else:
-            noise_tensors = None
-        return latents, labels, noise_tensors
-
-    nb_images = len(args.seeds) if args.seeds else len(args.latents.split(','))
-    progress = utils.ProgressWriter(nb_images)
-    progress.write('Generating images...', step=False)
-
-    for i in range(0, nb_images, args.batch_size):
-        if args.seeds:
-            latents, labels, noise_tensors = get_batch(args.seeds[i: i + args.batch_size])
-            if noise_tensors is not None:
-                G.static_noise(noise_tensors=noise_tensors)
-            with torch.no_grad():
-                generated = G(latents, labels=labels)
-            images = utils.tensor_to_PIL(
-                generated, pixel_min=args.pixel_min, pixel_max=args.pixel_max)
-            for seed, img in zip(args.seeds[i: i + args.batch_size], images):
-                img.save(os.path.join(args.output, 'seed%04d.png' % seed))
-                progress.step()
-
-        if args.latents:
-            # Assume that batch_size==1
-            latents = torch.load(args.latents.split(',')[i])
-            with torch.no_grad():
-                generated = G.G_synthesis(latents=latents)
-            images = utils.tensor_to_PIL(
-                generated, pixel_min=args.pixel_min, pixel_max=args.pixel_max)
-            for img in images:
-                img.save(os.path.join(args.output, 'latent%04d.png' % i))
-                progress.step()
-
-
-    progress.write('Done!', step=False)
-    progress.close()
-
-#----------------------------------------------------------------------------
-
-def interpolate(G, args):
-
-    latent_size, label_size = G.latent_size, G.label_size
-    device = torch.device(args.gpu[0] if args.gpu else 'cpu')
-    if device.index is not None:
-        torch.cuda.set_device(device.index)
-    G.to(device)
-    if args.truncation_psi != 1:
-        G.set_truncation(truncation_psi=args.truncation_psi)
-    if len(args.gpu) > 1:
-        warnings.warn(
-            'Noise can not be randomized based on the seed ' + \
-            'when using more than 1 GPU device. Noise will ' + \
-            'now be randomized from default random state.'
-        )
-        G.random_noise()
-        G = torch.nn.DataParallel(G, device_ids=args.gpu)
-    else:
-        noise_reference = G.static_noise()
-
-    def get_batch(seed_1, seed_2):
-        latents = []
-        labels = []
-        if len(args.gpu) <= 1:
-            noise_tensors = [[] for _ in noise_reference]
-
-        rnd = np.random.RandomState(123454321)
-        rnd_1, rnd_2 = np.random.RandomState(seed_1), np.random.RandomState(seed_2)
-        latent_1, latent_2 = torch.from_numpy(rnd_1.randn(latent_size)), torch.from_numpy(rnd_2.randn(latent_size))
-
-        for nb in range(args.number+1):
-            step = nb / args.number
-            latents.append(latent_2 * step + latent_1 * (1 - step))
-
-            if len(args.gpu) <= 1:
-                for i, ref in enumerate(noise_reference):
-                    noise_tensors[i].append(torch.from_numpy(rnd.randn(*ref.size()[1:])))
-            if label_size:
-                labels.append(torch.tensor([rnd.randint(0, label_size)]))
-
-        latents = torch.stack(latents, dim=0).to(device=device, dtype=torch.float32)
-        if labels:
-            labels = torch.cat(labels, dim=0).to(device=device, dtype=torch.int64)
-        else:
-            labels = None
-        if len(args.gpu) <= 1:
-            noise_tensors = [
-                torch.stack(noise, dim=0).to(device=device, dtype=torch.float32)
-                for noise in noise_tensors
-            ]
-        else:
-            noise_tensors = None
-        return latents, labels, noise_tensors
+    latents, names = [], []
 
     if args.seeds:
-        seed_1, seed_2 = args.seeds
-        all_latents, all_labels, all_noise_tensors = get_batch(seed_1, seed_2)
+        # Generate the latent factors from the seeds
+        for seed in args.seeds:
+            rnd = np.random.RandomState(seed)
+            latents.append(torch.from_numpy(rnd.randn(G.latent_size)).type(torch.float32))
+            names.append('seed_%04d' % seed)
+        latents = torch.stack(latents, dim=0)
+
     if args.latents:
-        latent_1, latent_2 = torch.load(args.latents.split(',')[0]), torch.load(args.latents.split(',')[1])
-        all_latents = []
-        for nb in range(args.number + 1):
-            step = nb / args.number
-            all_latents.append(latent_2 * step + latent_1 * (1 - step))
-        all_latents = torch.stack(all_latents, dim=0).to(device=device, dtype=torch.float32)
+        # Read the files with the latent factors
+        for e, l in enumerate(args.latents.split(',')):
+            latents.append(torch.load(l))
+            names.append('latent_%04d' % e)
+        latents = torch.cat(latents, dim=0)
 
-    for i in range(0, all_latents.shape[0], args.batch_size):
-        if args.seeds:
-            latents, labels, noise_tensors = all_latents[i: i+args.batch_size], all_labels[i: i+args.batch_size] if all_labels else None, [n[i: i+args.batch_size] for n in all_noise_tensors] if all_noise_tensors else None
-            if noise_tensors is not None:
-                G.static_noise(noise_tensors=noise_tensors)
-            with torch.no_grad():
-                generated = G(latents, labels=labels)
+    if type_=='generate':
+        print(latents)
+        return latents, names
 
-        if args.latents:
-            with torch.no_grad():
-                generated = G.G_synthesis(latents=all_latents[i])
+    elif type_=='interpolate':
+        assert len(latents)==2, '2 latents should be provided when interpolating.'
 
-        images = utils.tensor_to_PIL(
-            generated, pixel_min=args.pixel_min, pixel_max=args.pixel_max)
-        for img in images:
-            img.save(os.path.join(args.output, 'interpolate_%04d.png' % i))
+        print('Interpolating latents factors...')
+        if args.type=='linear':
+            print('Linear interpolation')
+            latents_interpolated = linear_interpolation(latents[0].numpy(), latents[1].numpy(), args.number)
+        elif args.type=='slerp':
+            print('Slerp interpolation')
+            latents_interpolated = slerp_interpolation(latents[0].numpy(), latents[1].numpy(), args.number)
+
+        latents_interpolated = torch.from_numpy(latents_interpolated).unsqueeze(1)
+        return latents_interpolated, ['interpolate_%04d' % i for i in range(args.number + 1)]
+
+
+def generate_images(type_, G, args):
+
+    device = set_device(G, args)
+
+    # Set truncation_psi
+    if args.truncation_psi != 1:
+        G.set_truncation(truncation_psi=args.truncation_psi)
+
+    # Set random noise (instead of noise generated from seed)
+    G.random_noise()
+
+    # Get labels (deactivated for the moment)
+    labels = None
+    #if G.label_size:
+    #    labels = [torch.tensor([np.random.randint(0, G.label_size)]) for _ in range(nb_images)]
+    #    labels = torch.cat(labels, dim=0).to(device=device, dtype=torch.int64)
+
+    # Get latent factors and names of images
+    latents, names = build_latents_names(type_, G, args)
+    latents.to(device=device, dtype=torch.float32)
+
+    # Generate images per batch
+    for i in tqdm(range(0, latents.shape[0], args.batch_size)):
+        batch_latents = latents[i: i + args.batch_size]
+        batch_names = names[i: i + args.batch_size]
+
+        with torch.no_grad():
+            if args.seeds:
+                # In this case the latents factors must be fed first into the mapping network
+                generated = G(batch_latents, labels=labels)
+            if args.latents:
+                # In this case we assume that the latent factors are output of mapping network (because that's the output of the projection)
+                # Labels are not handled here
+                generated = G.G_synthesis(latents=batch_latents)
+
+        images = utils.tensor_to_PIL(generated, pixel_min=args.pixel_min, pixel_max=args.pixel_max)
+        for name, img in zip(batch_names, images):
+            img.save(os.path.join(args.output, name + '.png'))
 
 
 #----------------------------------------------------------------------------
 
 def main():
+
     args = get_arg_parser().parse_args()
+
     assert args.command, 'Missing subcommand.'
     assert os.path.isdir(args.output) or not os.path.splitext(args.output)[-1], \
         '--output argument should specify a directory, not a file.'
@@ -493,9 +436,9 @@ def main():
         'stylegan2.models.Generator. Found {}.'.format(type(G))
 
     if args.command == 'generate_images':
-        generate_images(G, args)
+        generate_images('generate', G, args)
     elif args.command == 'interpolate':
-        interpolate(G, args)
+        generate_images('interpolate', G, args)
     elif args.command == 'style_mixing_example':
         style_mixing_example(G, args)
     else:

@@ -24,13 +24,14 @@ def run_generate(model_path, out_path, seeds=None, latents=None, truncation_psi=
     Popen(shlex.split(cmd)).wait()
 
 
-def run_interpolate(model_path, out_path, number, seeds=None, latents=None, truncation_psi=DEFAULT_TRUNCATION_PSI):
+def run_interpolate(model_path, out_path, number, seeds=None, latents=None, truncation_psi=DEFAULT_TRUNCATION_PSI, type_=None):
 
     seeds_or_latents = ','.join(map(str, seeds)) if seeds else ','.join(latents)
     seeds_or_latents_arg = f'--seeds={seeds_or_latents}' if seeds else f'--latents={seeds_or_latents}'
+    type_arg = f'--type={type_}' if type_ else ''
 
     os.makedirs(out_path, exist_ok=True)
-    cmd = f'python run_generator.py interpolate --network={model_path} {seeds_or_latents_arg} --output={out_path} --number={number} --truncation_psi={truncation_psi}'
+    cmd = f'python run_generator.py interpolate --network={model_path} {seeds_or_latents_arg} --output={out_path} --number={number} --truncation_psi={truncation_psi} {type_arg}'
     Popen(shlex.split(cmd)).wait()
 
 
@@ -145,8 +146,8 @@ if __name__=='__main__':
     #build_image([f'{output_dir}/{i}' for i in os.listdir(output_dir)], 'outputs/generated.png', nb_rows=4)
 
     # Interpolate
-    output_dir = 'outputs/interpolate'
-    run_interpolate(model_path, output_dir, 24, seeds=[3000, 4000], truncation_psi=0.5)
+    #output_dir = 'outputs/interpolate'
+    #run_interpolate(model_path, output_dir, 24, seeds=[3000, 4000], truncation_psi=0.5)
     #build_image(sorted([f'{output_dir}/{i}' for i in os.listdir(output_dir)]), 'outputs/interpolate.png', nb_rows = 5)
 
     # Projection
