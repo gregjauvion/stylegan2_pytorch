@@ -3,6 +3,8 @@ import os
 from subprocess import Popen
 import shlex
 from PIL import Image
+import copy
+import torch
 
 
 DEFAULT_TRUNCATION_PSI = 0.5
@@ -125,6 +127,109 @@ def compute_metrics(start_model_path, checkpoints_path, output_path, data_dir, n
 
 
 
+###
+# Load a new model (generator and discriminator) with an increased resolution
+# Set the parameters from a lower-resolution model
+###
+
+def build_model(g_model_path, d_model_path, channels):
+
+    # Read models
+    g_model = torch.load(g_model_path)
+    d_model = torch.load(d_model_path)
+
+    # Set new channels
+    old_channels = g_model['G_synthesis']['kwargs']['channels']
+    g_model['G_synthesis']['kwargs']['channels'] = channels
+    d_model['kwargs']['channels'] = channels
+
+    # Parameters to add in generator are, for each new channel:
+    # - conv_blocks.{n}.conv_block.{0|1}.bias == tensor(channels[-n-1]) with 0
+    # - conv_blocks.{n}.conv_block.{0|1}.layer.weight == tensor(1) with 0
+    # - conv_blocks.{n}.conv_block.0.layer.layer.dense.layer.weight == tensor(channels[-n], 512) random
+    # - conv_blocks.{n}.conv_block.1.layer.layer.dense.layer.weight == tensor(channels[-n-1], 512) random
+    # - conv_blocks.{n}.conv_block.0.layer.layer.weight == tensor(channels[-n-1], channels[-n], 3, 3) random
+    # - conv_blocks.{n}.conv_block.1.layer.layer.weight == tensor(channels[-n-1], channels[-n-1], 3, 3) random
+    # - conv_blocks.{n}.conv_block.0.layer.layer.dense.bias == tensor(channels[-n]) with 1
+    # - conv_blocks.{n}.conv_block.1.layer.layer.dense.bias == tensor(channels[-n-1]) with 1
+    #
+    # - to_data_layers.{n}.bias == tensor(3) with 0
+    # - to_data_layers.{n}.layer.weight == tensor(3, channels[-n-1], 1, 1) random
+    # - to_data_layers.{n}.layer.dense.bias == tensor(channels[-n-1]) with 1
+    # - to_data_layers.{n}.layer.dense.layer.weight == tensor(channels[-n-1], 512) random
+    std = 0.5
+    g_state_dict = g_model['G_synthesis']['state_dict']
+    g_new_state_dict = copy.deepcopy(g_state_dict)
+    for e, channel in enumerate(channels[:(len(channels) - len(old_channels))][::-1]):
+
+        idx = len(old_channels) + e
+
+        # conv_blocks parameters
+        g_new_state_dict[f'conv_blocks.{idx}.conv_block.0.bias'] = torch.zeros(channels[-idx-1])
+        g_new_state_dict[f'conv_blocks.{idx}.conv_block.1.bias'] = torch.zeros(channels[-idx-1])
+        g_new_state_dict[f'conv_blocks.{idx}.conv_block.0.layer.weight'] = torch.zeros(1)
+        g_new_state_dict[f'conv_blocks.{idx}.conv_block.1.layer.weight'] = torch.zeros(1)
+        g_new_state_dict[f'conv_blocks.{idx}.conv_block.0.layer.layer.dense.layer.weight'] = torch.zeros(channels[-idx], 512).normal_(0, std)
+        g_new_state_dict[f'conv_blocks.{idx}.conv_block.1.layer.layer.dense.layer.weight'] = torch.zeros(channels[-idx-1], 512).normal_(0, std)
+        g_new_state_dict[f'conv_blocks.{idx}.conv_block.0.layer.layer.weight'] = torch.zeros(channels[-idx-1], channels[-idx], 3, 3).normal_(0, std)
+        g_new_state_dict[f'conv_blocks.{idx}.conv_block.1.layer.layer.weight'] = torch.zeros(channels[-idx-1], channels[-idx-1], 3, 3).normal_(0, std)
+        g_new_state_dict[f'conv_blocks.{idx}.conv_block.0.layer.layer.dense.bias'] = torch.ones(channels[-idx])
+        g_new_state_dict[f'conv_blocks.{idx}.conv_block.1.layer.layer.dense.bias'] = torch.ones(channels[-idx-1])
+
+        g_new_state_dict[f'conv_blocks.{idx}.conv_block.0.layer.layer.filter.filter_kernel'] = g_state_dict['conv_blocks.1.conv_block.0.layer.layer.filter.filter_kernel']
+
+        # to_data parameters
+        g_new_state_dict[f'to_data_layers.{idx}.bias'] = torch.ones(3)
+        g_new_state_dict[f'to_data_layers.{idx}.layer.weight'] = torch.zeros(3, channels[-idx-1], 1, 1).normal_(0, std)
+        g_new_state_dict[f'to_data_layers.{idx}.layer.dense.bias'] = torch.ones(channels[-idx-1])
+        g_new_state_dict[f'to_data_layers.{idx}.layer.dense.layer.weight'] = torch.zeros(channels[-idx-1], 512).normal_(0, std)
+
+
+    # Parameters in discriminator need to be modified:
+    # - from_data_layers.0.bias == tensor(channels[0]) random
+    # - from_data_layers.0.layer.weight == tensor(channels[0], 3, 1, 1) random
+    # - shift all conv_blocks.{n}* to all_conv_blocks.{n + nb_new_channels}*
+    # For the added channels:
+    # - conv_blocks.0.conv_block.0.bias == tensor(channels[n])
+    # - conv_blocks.0.conv_block.0.layer.weight == tensor(channels[n], channels[n], 3, 3)
+    # - conv_blocks.0.conv_block.1.bias == tensor(channels[n+1])
+    # - conv_blocks.0.conv_block.1.layer.weight == tensor(channels[n+1], channels[n], 3, 3])
+    # - conv_blocks.0.conv_block.1.layer.filter.filter_kernel == tensor(1, 1, 4, 4])
+    # - conv_blocks.0.projection.weight == tensor(channels[n+1], channels[n], 1, 1)
+    # - conv_blocks.0.projection.filter.filter_kernel == tensor(1, 1, 4, 4)
+    std = 0.5
+    d_state_dict = d_model['state_dict']
+    d_new_state_dict = copy.deepcopy(d_state_dict)
+    d_new_state_dict['from_data_layers.0.bias'] = torch.zeros(channels[0]).normal_(0, std)
+    d_new_state_dict['from_data_layers.0.layer.weight'] = torch.zeros(channels[0], 3, 1, 1).normal_(0, std)
+    nb_shift = len(channels) - len(old_channels)
+    keys_to_rename = {}
+    for k in d_state_dict.keys():
+        if 'conv_blocks' in k:
+            i = k[12]
+            new_i = str(int(i) + nb_shift)
+            keys_to_rename[k] = k.replace(f'conv_blocks.{i}', f'conv_blocks.{new_i}')
+            del d_new_state_dict[k]
+
+    for k, k_ in sorted(keys_to_rename.items()):
+        d_new_state_dict[k_] = d_state_dict[k]
+
+    for e, channel in enumerate(channels[:(len(channels) - len(old_channels))]):
+        d_new_state_dict[f'conv_blocks.{e}.conv_block.0.bias'] = torch.zeros(channel).normal_(0, std)
+        d_new_state_dict[f'conv_blocks.{e}.conv_block.0.layer.weight'] = torch.zeros(channel, channel, 3, 3).normal_(0, std)
+        d_new_state_dict[f'conv_blocks.{e}.conv_block.1.bias'] = torch.zeros(channels[e + 1]).normal_(0, std)
+        d_new_state_dict[f'conv_blocks.{e}.conv_block.1.layer.weight'] = torch.zeros(channels[e+1], channels[e], 3, 3).normal_(0, std)
+        d_new_state_dict[f'conv_blocks.{e}.conv_block.1.layer.filter.filter_kernel'] = d_state_dict['conv_blocks.0.conv_block.1.layer.filter.filter_kernel']
+        d_new_state_dict[f'conv_blocks.{e}.projection.weight'] = torch.zeros(channels[e+1], channels[e], 1, 1).normal_(0, std)
+        d_new_state_dict[f'conv_blocks.{e}.projection.filter.filter_kernel'] = d_state_dict['conv_blocks.0.projection.filter.filter_kernel']
+
+    # Set new state dict
+    g_model['G_synthesis']['state_dict'] = g_new_state_dict
+    d_model['state_dict'] = d_new_state_dict
+
+    return g_model, d_model
+
+
 
 #########
 # Run
@@ -174,3 +279,11 @@ if __name__=='__main__':
 
     #plt.plot(fids_10, label='10') ; plt.plot(fids_20, label='20') ; plt.plot(fids_50, label='50')
     #plt.legend() ; plt.grid() ; plt.show()
+
+    # Build higher-resolution model
+    channels = [64, 128, 256, 512, 512, 512, 512, 512]
+    g_model_path = 'outputs/start_model/Gs.pt'
+    d_model_path = 'outputs/start_model/D.pt'
+    g_model, d_model = build_model(g_model_path, d_model_path, channels)
+    torch.save(g_model, 'outputs/start_model/Gs_512.pt')
+    torch.save(d_model, 'outputs/start_model/D_512.pt')
