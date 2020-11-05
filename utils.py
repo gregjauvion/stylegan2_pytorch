@@ -15,6 +15,9 @@ DEFAULT_TRUNCATION_PSI = 0.5
 
 def run_generate(model_path, out_path, seeds=None, latents=None, truncation_psi=DEFAULT_TRUNCATION_PSI):
     """
+    Either seeds or latents is filled:
+    - seeds is integers separated with ','
+    - latents is filenames with the latent vectors separated with ','
     with higher psi, you can get higher diversity on the generated images but it also has a higher chance of generating weird or broken faces
     """
 
@@ -27,6 +30,9 @@ def run_generate(model_path, out_path, seeds=None, latents=None, truncation_psi=
 
 
 def run_interpolate(model_path, out_path, number, seeds=None, latents=None, truncation_psi=DEFAULT_TRUNCATION_PSI, type_=None):
+    """
+    type_: type of interpolation (either linear or slerp)
+    """
 
     seeds_or_latents = ','.join(map(str, seeds)) if seeds else ','.join(latents)
     seeds_or_latents_arg = f'--seeds={seeds_or_latents}' if seeds else f'--latents={seeds_or_latents}'
@@ -287,3 +293,12 @@ if __name__=='__main__':
     g_model, d_model = build_model(g_model_path, d_model_path, channels)
     torch.save(g_model, 'outputs/start_model/Gs_512.pt')
     torch.save(d_model, 'outputs/start_model/D_512.pt')
+
+    # Plot metrics
+    path = 'outputs/jfr/metrics'
+    metrics = []
+    for i in range(12):
+        metrics.append(json.load(open(f'{path}/{i}/metrics.json', 'r'))['FID:10k'])
+
+    plt.plot(metrics) ; plt.ylim(ymin=0) ; plt.grid()
+    plt.savefig(f'{path}/plot.png') ; plt.close()
