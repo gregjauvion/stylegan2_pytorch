@@ -1,4 +1,5 @@
 
+import json
 import os
 from subprocess import Popen
 import shlex
@@ -127,9 +128,17 @@ def compute_metrics(start_model_path, checkpoints_path, output_path, data_dir, n
     models = [start_model_path] + [f'{checkpoints_path}/{c}/Gs.pth' for c in checkpoints]
 
     # Run the metrics
+    nb_epochs, metrics = [], []
     for e, m in enumerate(models):
+        epochs = 0 if e==0 else int(checkpoints[e-1].split('_')[0])
+        output = f'{output_path}/{epochs}'
         print(f'Evaluating model {m}')
-        run_metrics(m, f'{output_path}/{e}', data_dir, num_samples, gpu=True)
+        run_metrics(m, output, data_dir, num_samples, gpu=True)
+        nb_epochs.append(epochs)
+        metrics.append(json.load(open(f'{output}/metrics.json', 'r'))[f'FID:{int(num_samples/1000)}k'])
+
+    # Write summary file
+    json.dump({'nb_epochs': nb_epochs, 'metrics': metrics}, open(f'{output_path}/metrics.json', 'w'))
 
 
 
@@ -247,8 +256,8 @@ if __name__=='__main__':
     import json
 
     # Path to the model
-    start_model_path = 'outputs/start_model/Gs.pt'
-    model_path = 'outputs/checkpoints/11000_2020-10-12_09-28-30/Gs.pth'
+    start_model_path = 'models/church/Gs.pt'
+    #model_path = 'models/outputs/checkpoints/11000_2020-10-12_09-28-30/Gs.pth'
 
     # Generate images
     #psi = 0.8
@@ -270,8 +279,9 @@ if __name__=='__main__':
     #model_learning(start_model_path, 'outputs/checkpoints', output_dir, [50 + i for i in range(10)])
 
     # Compute the metrics
-    #output_dir = 'outputs/metrics'
-    #compute_metrics(start_model_path, 'outputs/checkpoints', 'outputs/metrics', 'inputs/resized', 10000, sampling=1, gpu=True)
+    #run_metrics('models/jfr_paris_filtered/checkpoints/2750_2020-11-08_16-56-38/Gs.pth', './', '/home/gregoire/data/jfr_paris_filtered_augmented_256', 5000)
+    output_dir = 'models/jfr_paris_filtered/metrics'
+    compute_metrics(start_model_path, 'models/jfr_paris_filtered/checkpoints', output_dir, '/home/gregoire/data/jfr_paris_filtered_augmented_256', 5000, sampling=2, gpu=True)
 
     #fids_10, fids_20, fids_50 = [], [], []
     #for i in sorted(os.listdir(output_dir), key=lambda x: int(x)):
@@ -287,18 +297,18 @@ if __name__=='__main__':
     #plt.legend() ; plt.grid() ; plt.show()
 
     # Build higher-resolution model
-    channels = [64, 128, 256, 512, 512, 512, 512, 512]
-    g_model_path = 'outputs/start_model/Gs.pt'
-    d_model_path = 'outputs/start_model/D.pt'
-    g_model, d_model = build_model(g_model_path, d_model_path, channels)
-    torch.save(g_model, 'outputs/start_model/Gs_512.pt')
-    torch.save(d_model, 'outputs/start_model/D_512.pt')
+    #channels = [64, 128, 256, 512, 512, 512, 512, 512]
+    #g_model_path = 'outputs/start_model/Gs.pt'
+    #d_model_path = 'outputs/start_model/D.pt'
+    #g_model, d_model = build_model(g_model_path, d_model_path, channels)
+    #torch.save(g_model, 'outputs/start_model/Gs_512.pt')
+    #torch.save(d_model, 'outputs/start_model/D_512.pt')
 
     # Plot metrics
-    path = 'outputs/jfr/metrics'
-    metrics = []
-    for i in range(12):
-        metrics.append(json.load(open(f'{path}/{i}/metrics.json', 'r'))['FID:10k'])
+    #path = 'outputs/jfr/metrics'
+    #metrics = []
+    #for i in range(12):
+    #    metrics.append(json.load(open(f'{path}/{i}/metrics.json', 'r'))['FID:10k'])
 
-    plt.plot(metrics) ; plt.ylim(ymin=0) ; plt.grid()
-    plt.savefig(f'{path}/plot.png') ; plt.close()
+    #plt.plot(metrics) ; plt.ylim(ymin=0) ; plt.grid()
+    #plt.savefig(f'{path}/plot.png') ; plt.close()
