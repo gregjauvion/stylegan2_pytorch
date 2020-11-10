@@ -65,7 +65,7 @@ class FID:
                  prior_generator,
                  dataset,
                  device=None,
-                 num_samples=50000,
+                 num_samples=5000,
                  fid_model=None,
                  fid_size=None,
                  truncation_psi=None,
