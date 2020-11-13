@@ -1,47 +1,24 @@
 
 from utils import run_generate, run_interpolate
+from fast_srgan import get_model, srgan, srgan_dir
+
 import cv2
-from ISR.models import RDN, RRDN
 import os
 
 
+output_dir = 'outputs/jfr_gi_religion'
+model = 'models/Gs_jfr_gi_religion.pth'
+sr_model = get_model('models/fast_srgan_generator.h5')
 
-MODEL_CHURCH = 'models/Gs_church.pt'
-MODEL_ARC = 'models/Gs_arc_dataset.pt'
-MODEL_JFR = 'models/Gs_jfr_dataset.pt'
-MODEL_JFR_RELIGION = 'models/Gs_jfr_dataset_religion.pt'
-MODEL_JFR_GI_RELIGION = 'models/Gs_jfr_google_images_religion.pth'
-MODEL_JFR_PARIS = 'models/Gs_jfr_dataset_paris.pt'
+seeds = list(range(1, 30))
+nb_interpolation = 30
 
+for psi in [0.25, 0.5, 0.75]:
 
-seeds = list(range(1, 17))
+    # Generated and interpolated images
+    run_generate(model, f'{output_dir}/generation/{psi}/256', seeds, truncation_psi=psi)
+    run_interpolate(model, f'{output_dir}/interpolation/{psi}/256', nb_interpolation, seeds=[6, 12], truncation_psi=psi, type_='slerp')
 
-run_generate(MODEL_CHURCH, 'outputs/church/generated', seeds, truncation_psi=0.5)
-run_generate(MODEL_ARC, 'outputs/arc/generated', seeds, truncation_psi=0.5)
-run_generate(MODEL_JFR, 'outputs/jfr/generated', seeds, truncation_psi=0.5)
-run_generate(MODEL_JFR_GI_RELIGION, 'outputs/jfr_gi_religion/generated', seeds, truncation_psi=0.5)
-run_generate(MODEL_JFR_PARIS, 'outputs/jfr_paris/generated', seeds, truncation_psi=0.5)
-
-
-# Enhance images resolution
-sr_models = {
-    'rdn_small': RDN(weights='psnr-small'),
-    'rdn_large': RDN(weights='psnr-large'),
-    'rdn_nc': RDN(weights='noise-cancel')
-}
-
-for model in ['jfr_gi_religion']:
-    #for sr_model in ['rdn_small', 'rdn_large', 'rdn_nc']:
-    for sr_model in ['rdn_nc']:#['rdn_large', 'rdn_nc']:
-        print(model, sr_model)
-        # Create output dir if needed
-        in_path, out_path = f'outputs/{model}/generated', f'outputs/{model}/generated_{sr_model}_512'
-        if not os.path.exists(out_path):
-            os.makedirs(out_path, exist_ok=True)
-
-        for p in os.listdir(in_path):
-            print(p)
-            img = cv2.imread(f'{in_path}/{p}')
-            #img_sr = sr_models[sr_model].predict(sr_models[sr_model].predict(img))
-            img_sr = sr_models[sr_model].predict(img)
-            cv2.imwrite(f'{out_path}/{p}', img_sr)
+    # SR images
+    srgan_dir(sr_model, f'{output_dir}/generation/{psi}/256', f'{output_dir}/generation/{psi}/1024')
+    srgan_dir(sr_model, f'{output_dir}/interpolation/{psi}/256', f'{output_dir}/interpolation/{psi}/1024')
